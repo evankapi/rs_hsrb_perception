@@ -91,14 +91,14 @@ namespace rs_hsrb_perception {
             if(box) {
                 if(round) {
                     // Cylinder
-                    return 2;
+                    return 3;
                 }
-                // Box
+                // Cube
                 return 1;
             }
             if(round) {
                // Sphere
-               return 3;
+               return 2;
             }
             if(flat) {
                 // Plane
@@ -110,13 +110,6 @@ namespace rs_hsrb_perception {
         void makeObjectDetectionData(geometry_msgs::PoseStamped &pose, rs::Geometry &geometry, u_int shape, std::string region,
                 std::string &objClass, float confidence, std_msgs::ColorRGBA &c,  suturo_perception_msgs::ObjectDetectionData &odd) {
 
-//            std_msgs::ColorRGBA c;
-//            c.r = r;
-//            c.g = g;
-//            c.b = b;
-//            c.a = 1;
-
-
             odd.pose = pose;
             auto boundingBox = geometry.boundingBox();
             odd.width = boundingBox.width();
@@ -126,7 +119,7 @@ namespace rs_hsrb_perception {
             odd.region = region;
             odd.name = "Object (" + objClass + ")";
             odd.obj_class = objClass;
-            odd.confidence = confidence;
+            odd.confidence_class = confidence;
             odd.color = c;
 
 

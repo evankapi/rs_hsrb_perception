@@ -140,7 +140,7 @@ void SuturoProcessManager::getClusterFeatures(rs::ObjectHypothesis cluster, std:
         float knownObjConfidence = 0;
         float r = 0.0;
         float g = 0.0;
-        float b =0.0;
+        float b = 0.0;
         std_msgs::ColorRGBA c;
 
 
@@ -183,7 +183,7 @@ void SuturoProcessManager::getClusterFeatures(rs::ObjectHypothesis cluster, std:
             c.a = 1;
 
         } else {
-            ROS_WARN("Warning: No color was perviecde");
+            ROS_WARN("Warning: No color was perceived");
         }
 
 
