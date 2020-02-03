@@ -194,19 +194,19 @@ void SuturoProcessManager::getClusterFeatures(rs::ObjectHypothesis cluster, std:
         }
         if(!classification.empty()){
             objClass = classification[0].classname.get();
-            knownObjClass = classification[1].classname.get();
+            //knownObjClass = classification[1].classname.get();
             outInfo("OBJCLASSNAME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: " << classification[0].classname.get());
-            outInfo("OBJCLASSNAME >>>>>>>>>KNOWN>>>>>>>KNOWN>>>>>>>: " << classification[1].classname.get());
+            //outInfo("OBJCLASSNAME >>>>>>>>>KNOWN>>>>>>>KNOWN>>>>>>>: " << classification[1].classname.get());
 
             if(!confi.empty()){
                 confidence = confi[0].score.get();
-                knownObjConfidence = confi[1].score.get();
+                //knownObjConfidence = confi[1].score.get();
                 outInfo("OBJCLASSCONFI <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<: " << confi[0].score.get());
-                outInfo("OBJCLASSCONFI <<<<<<<<<KNOWN<<<<<<<KNOWN<<<<<<: " << confi[1].score.get());
+                //outInfo("OBJCLASSCONFI <<<<<<<<<KNOWN<<<<<<<KNOWN<<<<<<: " << confi[1].score.get());
 
-                if(confidence < knownObjConfidence){
+                /*if(confidence < knownObjConfidence){
                     objClass = knownObjClass;
-                }
+                }*/
             } else {
                 ROS_WARN("Warning: No confidence was perceived");
             }
