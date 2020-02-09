@@ -17,6 +17,7 @@ SuturoProcessManager::SuturoProcessManager(ros::NodeHandle n, const std::string 
     //error: no macthing  member function  for call  to 'advertise service'
     vis_service = nh.advertiseService("vis_command", &SuturoProcessManager::visControlCallback, this);
     image_pub = image_transport.advertise("result_image", 1, true);
+
     visualize = true;
 }
 
@@ -27,7 +28,8 @@ SuturoProcessManager::SuturoProcessManager(ros::NodeHandle n, std::string &name)
         name(name)
 {
     setup();
-    visualize = false;
+    
+    visualize = true;
 }
 
 void SuturoProcessManager::setup() {
@@ -70,11 +72,18 @@ void SuturoProcessManager::init(std::string &pipeline) {
 void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vector<ObjectDetectionData>& detectionData) {
     outInfo("Running the Suturo Process Manager");
     outInfo("Setting up runtime parameters...");
+
     if(args.find("regions") != args.end()) {
         outInfo("Custom regions are displayed");
         regions = boost::any_cast<std::vector<std::string>>(args["regions"]);
         filter_regions = true;
     }
+    else {
+	    outInfo("Custom regions are disabled");
+        regions = std::vector<std::string>();
+        filter_regions = false;
+    }
+
     outInfo("Analysis engine starts processing");
     engine.process();
     uima::CAS* tcas = engine.getCas();
