@@ -3,12 +3,13 @@
  * Optimized for the Suturo Perception Pipelines
  * @author Fenja Kollasch
  */
-#include <rs/types/all_types.h>
-#include <rs/scene_cas.h>
-#include <rs/utils/time.h>
-#include <rs/flowcontrol/RSProcessManager.h>
+#include <robosherlock/types/all_types.h>
+#include <robosherlock/scene_cas.h>
+#include <robosherlock/utils/time.h>
+#include <robosherlock/flowcontrol/RSProcessManager.h>
 #include <rs_hsrb_perception/suturo_conversion.h>
 #include <suturo_perception_msgs/ObjectDetectionData.h>
+
 
 using namespace suturo_perception_msgs;
 
@@ -23,7 +24,7 @@ private:
     void getClusterFeatures(rs::ObjectHypothesis cluster, std::vector<ObjectDetectionData> &data);
 public:
     // Public Parameters
-    RSAnalysisEngine engine;
+    RSAggregateAnalysisEngine *engine;
     rs::Visualizer visualizer;
 
     // ROS stuff for image topics
@@ -41,6 +42,8 @@ public:
     void init(std::string &pipeline);
 
     void run(std::map<std::string, boost::any> args, std::vector<ObjectDetectionData> &detectionData);
+
+    void setVisualize(bool visualize);
 
     /**
      * Determines if a vertical plane is visible

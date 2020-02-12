@@ -10,7 +10,7 @@ SuturoProcessManager::SuturoProcessManager(ros::NodeHandle n, const std::string 
     savePath(savePath),
     nh(n),
     image_transport(nh),
-    visualizer(savePath, true),
+    visualizer(false, false),
     name(name)
 {
     setup();
@@ -18,39 +18,28 @@ SuturoProcessManager::SuturoProcessManager(ros::NodeHandle n, const std::string 
     vis_service = nh.advertiseService("vis_command", &SuturoProcessManager::visControlCallback, this);
     image_pub = image_transport.advertise("result_image", 1, true);
 
-    visualize = true;
+    visualize = false;
 }
 
 SuturoProcessManager::SuturoProcessManager(ros::NodeHandle n, std::string &name) :
         nh(n),
         image_transport(nh),
-        visualizer(savePath, true),
+        visualizer(false, false),
         name(name)
 {
     setup();
-    
-    visualize = true;
+
+    visualize = false;
 }
 
 void SuturoProcessManager::setup() {
     outInfo("A RoboSherlock process manager optimized for the Suturo perception was created.");
     signal(SIGINT, RSProcessManager::signalHandler);
+
     outInfo("Creating resource manager");
     uima::ResourceManager &resourceManager = uima::ResourceManager::createInstance((name+"/RoboSherlock").c_str());
+    resourceManager.setLoggingLevel(uima::LogStream::EnError);
 
-    switch(OUT_LEVEL)
-    {
-        case OUT_LEVEL_NOOUT:
-        case OUT_LEVEL_ERROR:
-            resourceManager.setLoggingLevel(uima::LogStream::EnError);
-            break;
-        case OUT_LEVEL_INFO:
-            resourceManager.setLoggingLevel(uima::LogStream::EnWarning);
-            break;
-        case OUT_LEVEL_DEBUG:
-            resourceManager.setLoggingLevel(uima::LogStream::EnMessage);
-            break;
-    }
     regions = std::vector<std::string>();
 }
 
@@ -60,11 +49,13 @@ void SuturoProcessManager::init(std::string &pipeline) {
 
     std::string pipelinePath;
     rs::common::getAEPaths(pipeline, pipelinePath);
-    engine.init(pipelinePath, false);
+    engine = rs::createRSAggregateAnalysisEngine(pipelinePath);
 
     uima::ErrorInfo errorInfo;
     mongo::client::GlobalInstance instance;
+
     if(visualize) {
+        //visualizer.addVisualizableGroupManager(engine->getAAEName());
         visualizer.start();
     }
 }
@@ -79,14 +70,14 @@ void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vect
         filter_regions = true;
     }
     else {
-	    outInfo("Custom regions are disabled");
+	outInfo("Custom regions are disabled");
         regions = std::vector<std::string>();
         filter_regions = false;
     }
 
     outInfo("Analysis engine starts processing");
-    engine.process();
-    uima::CAS* tcas = engine.getCas();
+    engine->processOnce();
+    uima::CAS* tcas = engine->getCas();
     rs::SceneCas cas(*tcas);
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGBA>);
     cas.get(VIEW_CLOUD, *cloud_ptr);
@@ -104,11 +95,26 @@ void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vect
     }
 }
 
+void SuturoProcessManager::setVisualize(bool visualize) {
+    if(this->visualize == visualize) {
+        return;
+    }
+
+    if(visualize) {
+        visualizer.start();
+    }
+    else {
+        visualizer.stop();
+    }
+
+    this->visualize = visualize;
+}
+
 bool SuturoProcessManager::has_vertical_plane() {
     outInfo("Looking for a vertical plane...");
     outInfo("Running the analysis engine...");
-    engine.process();
-    uima::CAS* tcas = engine.getCas();
+    engine->processOnce();
+    uima::CAS* tcas = engine->getCas();
     rs::SceneCas cas(*tcas);
     rs::Scene scene = cas.getScene();
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGBA>);

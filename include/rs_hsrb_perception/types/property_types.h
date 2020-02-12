@@ -9,9 +9,9 @@
 #ifndef __PROPERTY_TYPES_H__
 #define __PROPERTY_TYPES_H__
 
-#include <rs/feature_structure_proxy.h>
+#include <robosherlock/feature_structure_proxy.h>
 #include <rs_hsrb_perception/types/type_definitions.h>
-#include <rs/types/core_types.h>
+#include <robosherlock/types/core_types.h>
 
 namespace rs_hsrb_perception
 {

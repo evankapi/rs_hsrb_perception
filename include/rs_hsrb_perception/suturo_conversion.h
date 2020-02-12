@@ -7,9 +7,9 @@
 #include <tf/transform_datatypes.h>
 
 // RS
-#include <rs/conversion/conversion.h>
-#include <rs/types/tf_types.h>
-#include <rs/types/all_types.h>
+#include <robosherlock/conversion/conversion.h>
+#include <robosherlock/types/tf_types.h>
+#include <robosherlock/types/all_types.h>
 #include <suturo_perception_msgs/ObjectDetectionData.h>
 
 namespace rs_hsrb_perception {

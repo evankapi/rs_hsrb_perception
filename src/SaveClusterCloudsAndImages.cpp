@@ -31,10 +31,10 @@
 
 #include "uima/api.hpp"
 
-#include <rs/scene_cas.h>
-#include <rs/utils/exception.h>
-#include <rs/utils/output.h>
-#include <rs/utils/time.h>
+#include <robosherlock/scene_cas.h>
+#include <robosherlock/utils/exception.h>
+#include <robosherlock/utils/output.h>
+#include <robosherlock/utils/time.h>
 
 #include <ros/package.h>
 
