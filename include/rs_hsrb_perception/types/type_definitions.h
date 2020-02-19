@@ -5,5 +5,6 @@
 #define __RS_HSRB_PERCEPTION_TYPE_DEFINITIONS_H__
 
 #define RS_HSRB_PERCEPTION_PROPERTY_BOUNDINGBOX "rs_hsrb_perception.property.BoundingBox"
+#define RS_HSRB_PERCEPTION_PROPERTY_REGION "rs_hsrb_perception.property.Region"
 
 #endif /* __RS_HSRB_PERCEPTION_TYPE_DEFINITIONS_H__ */

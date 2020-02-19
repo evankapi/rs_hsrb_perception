@@ -39,20 +39,24 @@ public:
       cluster.annotations.filter(poses);
       if(!poses.empty()) {
         rs::StampedPose pose = poses[0].world();
-        std::vector<rs::Region> regions;
+        std::vector<rs_hsrb_perception::Region> regions;
         scene.annotations.filter(regions);
-        for(rs::Region region : regions) {
+        for(rs_hsrb_perception::Region region : regions) {
           auto regionPos = region.transform().translation();
           auto clusterPos = pose.translation();
           double x = std::abs(regionPos[0] - clusterPos[0]);
           double y = std::abs(regionPos[1] - clusterPos[1]);
           double z = std::abs(regionPos[2] - clusterPos[2]);
+
           outInfo(region.name() << " Origin: " << regionPos[0]<<","<<regionPos[1]<<","<<regionPos[2]);
           outInfo("Cluster Origin: " << clusterPos[0]<<","<<clusterPos[1]<<","<<clusterPos[2]);
           outInfo("Point: " << x << "," << y << "," << z);
           outInfo("Region Frustum: " << region.height()/2 <<","<< region.width()/2 <<","<< region.depth()/2);
+
           if(x < region.height()/2 && y < region.width()/2 && z < region.depth()/2) {
-            cluster.region.set(region.name());
+              rs_hsrb_perception::Region r = rs::create<rs_hsrb_perception::Region>(tcas);
+              r.name().assign(region.name());
+              cluster.annotations.append(r);
           }
         }
       }

@@ -8,6 +8,7 @@
 #include <robosherlock/utils/time.h>
 #include <robosherlock/flowcontrol/RSProcessManager.h>
 #include <rs_hsrb_perception/suturo_conversion.h>
+#include <rs_hsrb_perception/types/all_types.h>
 #include <suturo_perception_msgs/ObjectDetectionData.h>
 
 

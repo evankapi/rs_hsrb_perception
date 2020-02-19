@@ -12,6 +12,7 @@
 #include <robosherlock/feature_structure_proxy.h>
 #include <rs_hsrb_perception/types/type_definitions.h>
 #include <robosherlock/types/core_types.h>
+#include <robosherlock/types/tf_types.h>
 
 namespace rs_hsrb_perception
 {
@@ -49,8 +50,51 @@ public:
   }
 };
 
+/*
+ * Annotation of a semantic region
+ */
+class Region : public rs::Annotation
+{
+private:
+  void initFields()
+  {
+    transform.init(this, "transform");
+    name.init(this, "name");
+    type.init(this, "type");
+    width.init(this, "width");
+    height.init(this, "height");
+    depth.init(this, "depth");
+  }
+public:
+  // Region transform
+  rs::ComplexFeatureStructureEntry<rs::StampedTransform> transform;
+  // Region name
+  rs::FeatureStructureEntry<std::string> name;
+  // Region type
+  rs::FeatureStructureEntry<std::string> type;
+  // No description given
+  rs::FeatureStructureEntry<float> width;
+  // No description given
+  rs::FeatureStructureEntry<float> height;
+  // No description given
+  rs::FeatureStructureEntry<float> depth;
+
+  Region(const Region &other) :
+      rs::Annotation(other)
+  {
+    initFields();
+  }
+
+  Region(uima::FeatureStructure fs) :
+      rs::Annotation(fs)
+  {
+    initFields();
+  }
+};
+
 }
 
 TYPE_TRAIT(rs_hsrb_perception::BoundingBox, RS_HSRB_PERCEPTION_PROPERTY_BOUNDINGBOX)
+TYPE_TRAIT(rs_hsrb_perception::Region, RS_HSRB_PERCEPTION_PROPERTY_REGION)
 
 #endif /* __PROPERTY_TYPES_H__ */

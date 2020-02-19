@@ -55,7 +55,8 @@ void SuturoProcessManager::init(std::string &pipeline) {
     mongo::client::GlobalInstance instance;
 
     if(visualize) {
-        //visualizer.addVisualizableGroupManager(engine->getAAEName());
+        // visualizer.addVisualizableGroupManager(engine->getAAEName());
+        // Use legacy visualisation
         visualizer.start();
     }
 }
@@ -85,9 +86,19 @@ void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vect
     rs::Scene scene = cas.getScene();
     std::vector<rs::ObjectHypothesis> clusters;
     scene.identifiables.filter(clusters);
+
     for (auto &cluster : clusters) {
-        outInfo("Cluster region: " << cluster.region());
-        if(!filter_regions || std::find(regions.begin(), regions.end(), cluster.region()) != regions.end()) {
+        std::vector<rs_hsrb_perception::Region> region;
+        cluster.annotations.filter(region);
+
+        if(region.empty()) {
+            outInfo("No regions annotated.");
+        }
+        else {
+            outInfo("Cluster region: " << region[0].name());
+        }
+
+        if(!filter_regions || std::find(regions.begin(), regions.end(), region[0].name()) != regions.end()) {
             getClusterFeatures(cluster, detectionData);
         } else {
             outInfo("Object was ignored because it seems to be placed on the wrong surface");
@@ -198,14 +209,14 @@ void SuturoProcessManager::getClusterFeatures(rs::ObjectHypothesis cluster, std:
             c.a = 1;
 
         } else {
-            ROS_WARN("Warning: No color was perceived");
+            ROS_WARN("Warning: No color was perceived.");
         }
 
 
         if(!poses.empty()) {
             rs_hsrb_perception::conversion::from(poses[0].world.get(), poseStamped);
         } else {
-            ROS_WARN("Warning: No pose information was perceived");
+            ROS_WARN("Warning: No pose information was perceived.");
         }
         if(!classification.empty()){
             objClass = classification[0].classname.get();
@@ -223,21 +234,32 @@ void SuturoProcessManager::getClusterFeatures(rs::ObjectHypothesis cluster, std:
                     objClass = knownObjClass;
                 }*/
             } else {
-                ROS_WARN("Warning: No confidence was perceived");
+                ROS_WARN("Warning: No confidence was perceived.");
             }
 
         } else {
-            ROS_WARN("Warning: No object class was perceived");
+            ROS_WARN("Warning: No object class was perceived.");
         }
 
-        rs_hsrb_perception::conversion::makeObjectDetectionData(poseStamped, geometry[0],
-                rs_hsrb_perception::conversion::decode_shape(shapes), cluster.region(), objClass, confidence, c, odd);
+        std::vector<rs_hsrb_perception::Region> region;
+        cluster.annotations.filter(region);
+
+        if(region.empty()) {
+            ROS_WARN("Warning: No region annotated.");
+
+            rs_hsrb_perception::conversion::makeObjectDetectionData(poseStamped, geometry[0],
+                    rs_hsrb_perception::conversion::decode_shape(shapes), "", objClass, confidence, c, odd);
+        }
+        else {
+            rs_hsrb_perception::conversion::makeObjectDetectionData(poseStamped, geometry[0],
+                    rs_hsrb_perception::conversion::decode_shape(shapes), region[0].name(), objClass, confidence, c, odd);
+        }
+
+
         data.push_back(odd);
 
-
-
     } else {
-        ROS_WARN("Object Feature detection was unsuccessful. No geometries were recognized for this object.");
+        ROS_WARN("Warning: Object Feature detection was unsuccessful. No geometries were recognized for this object.");
     }
 
 }
