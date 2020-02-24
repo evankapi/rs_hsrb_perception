@@ -66,15 +66,26 @@ void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vect
     outInfo("Setting up runtime parameters...");
 
     if(args.find("regions") != args.end()) {
-        outInfo("Custom regions are displayed");
         regions = boost::any_cast<std::vector<std::string>>(args["regions"]);
-        filter_regions = true;
+
+        if(regions.size() > 0 && regions[0].compare("robocup_default") == 0) {
+            outInfo("RegionFilter will be disabled..");
+
+            filter_regions = false;
+        }
+        else {
+            outInfo("Custom regions are displayed");
+            filter_regions = true;
+        }
     }
     else {
-	outInfo("Custom regions are disabled");
+	    outInfo("Custom regions are disabled");
         regions = std::vector<std::string>();
         filter_regions = false;
     }
+
+    engine->overwriteParam("SuturoRegionFilter", "enabled", filter_regions);
+    engine->iv_annotatorMgr.iv_vecEntries[engine->getIndexOfAnnotator("SuturoRegionFilter")].iv_pEngine->reconfigure();
 
     outInfo("Analysis engine starts processing");
     engine->processOnce();

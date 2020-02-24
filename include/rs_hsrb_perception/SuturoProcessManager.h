@@ -53,6 +53,8 @@ public:
      */
     bool has_vertical_plane();
 
+    bool updateRegionFilter(bool enabled);
+
     bool visControlCallback(robosherlock_msgs::RSVisControl::Request &req,
                             robosherlock_msgs::RSVisControl::Response &res);
 };
