@@ -121,12 +121,7 @@ namespace rs_hsrb_perception {
             odd.obj_class = objClass;
             odd.confidence_class = confidence;
             odd.color = c;
-
-
         }
-
-
-
     }
 }
 

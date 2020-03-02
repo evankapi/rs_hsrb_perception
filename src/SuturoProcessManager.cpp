@@ -84,8 +84,8 @@ void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vect
         filter_regions = false;
     }
 
-    engine->overwriteParam("SuturoRegionFilter", "enabled", filter_regions);
-    engine->iv_annotatorMgr.iv_vecEntries[engine->getIndexOfAnnotator("SuturoRegionFilter")].iv_pEngine->reconfigure();
+    //engine->overwriteParam("SuturoRegionFilter", "enabled", filter_regions);
+    //engine->iv_annotatorMgr.iv_vecEntries[engine->getIndexOfAnnotator("SuturoRegionFilter")].iv_pEngine->reconfigure();
 
     outInfo("Analysis engine starts processing");
     engine->processOnce();
@@ -109,7 +109,7 @@ void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vect
             outInfo("Cluster region: " << region[0].name());
         }
 
-        if(!filter_regions || std::find(regions.begin(), regions.end(), region[0].name()) != regions.end()) {
+        if(!filter_regions || region.size() == 0 || std::find(regions.begin(), regions.end(), region[0].name()) != regions.end()) {
             getClusterFeatures(cluster, detectionData);
         } else {
             outInfo("Object was ignored because it seems to be placed on the wrong surface");

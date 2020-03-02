@@ -19,4 +19,4 @@ parameters:
   enable_frustum_culling: false
   global_threshold: 0.12
   pixel_threshold: 0.15
-  semantic_map_definition: "semantic_map_iai_kitchen.yaml"
+  semantic_map_definition: "suturo_semantic_map.yaml"

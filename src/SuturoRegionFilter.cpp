@@ -43,6 +43,7 @@
 #include <rapidjson/pointer.h>
 
 #include <yaml-cpp/yaml.h>
+#include <rs_hsrb_perception/types/all_types.h>
 
 using namespace uima;
 
@@ -53,132 +54,120 @@ using namespace uima;
  */
 class SuturoRegionFilter : public DrawingAnnotator
 {
-    /**
-     * @brief The SemanticMapItem struct
-     * transform describing transformation from reference frame to center of region you are definging
-     * Dimensions are defined on each axis. If defining a regins that should have a supporting plane you
-     * can optionally add the equation of the plane to the map entry
-     */
-    struct SemanticMapItem
+    struct Region
     {
         tf::Transform transform;
-        std::string reference_frame;
-        std::string name, type;
-        double y_dimention, z_dimension, x_dimention;
-        cv::Vec4f plane_eq;
-        bool has_plane_equations = false;
+        float width, depth, height;
+        std::string name;
+        std::string type;
     };
-    std::vector<SemanticMapItem> semantic_map_items_;
-    std::vector<SemanticMapItem> active_semantic_map_items_;
 
     typedef pcl::PointXYZRGBA PointT;
 
-    double point_size_;
-    float border_;
+    double pointSize;
+    float border;
 
-    cv::Mat color_, depth_;
-    pcl::PointCloud<PointT>::Ptr cloud_;
-    pcl::IndicesPtr indices_;
+    cv::Mat color, depth;
+    pcl::PointCloud<PointT>::Ptr cloud;
+    pcl::IndicesPtr indices;
 
     tf::StampedTransform camToWorld, worldToCam;
+    std::vector<Region> regions;
 
-    std::vector<std::string> default_regions_;
-    std::vector<std::string> regions_to_look_at_;
-    // name mapping for queries
-    std::map<std::string, std::string> name_mapping_;
+    std::vector<std::string> defaultRegions;
+    //name mapping for queries
+    std::map<std::string, std::string> nameMapping;
 
     // for change detection
-    bool change_detection_, frustum_culling_;
-    cv::Mat last_img_, last_mask_;
-    float threshold, pixel_threshold_, depth_threshold_;
-    std::vector<int> changes_, last_indices_;
+    bool changeDetection, frustumCulling_;
+    cv::Mat lastImg, lastMask;
+    float threshold, pixelThreshold, depthThreshold;
+    std::vector<int> changes, lastIndices;
     size_t frames, filtered;
-    ros::Time last_time_;
+    ros::Time lastTime;
     uint32_t timeout;
 
     // for frustum culling
-    sensor_msgs::CameraInfo camera_info_;
+    sensor_msgs::CameraInfo cameraInfo;
     pcl::visualization::Camera camera;
-
-    rs::TFListenerProxy listener_;
     double frustum[24];
 
-    // for disable / enable
-    bool enabled;
-    std::string lastFile;
+    bool annotate;
+    std::string frame;
+    tf::TransformListener transformListener;
 
 public:
-    SuturoRegionFilter()
-            : DrawingAnnotator(__func__)
-            , point_size_(1)
-            , border_(0.05)
-            , cloud_(new pcl::PointCloud<PointT>())
-            , indices_(new std::vector<int>())
-            , change_detection_(true)
-            , frustum_culling_(false)
-            , threshold(0.1)
-            , pixel_threshold_(0.1)
-            , depth_threshold_(0.01)
-            , frames(0)
-            , filtered(0)
-            , last_time_(ros::Time::now())
-            , timeout(120)
+
+    SuturoRegionFilter() : DrawingAnnotator(__func__), pointSize(1), border(0.05), cloud(new pcl::PointCloud<PointT>()),
+                     indices(new std::vector<int>()),
+                     changeDetection(true), frustumCulling_(false), threshold(0.1), pixelThreshold(0.1), depthThreshold(0.01), frames(0), filtered(0), lastTime(ros::Time::now()), timeout(120)
     {
     }
 
-    TyErrorId initialize(AnnotatorContext& ctx)
+    void mask_default_regions(std::vector<std::string> mask) {
+        std::vector<std::string> new_regions = std::vector<std::string>();
+        for(auto region : defaultRegions) {
+            if(std::find(mask.begin(), mask.end(), region) != mask.end()) {
+                new_regions.emplace_back(region);
+            }
+        }
+        defaultRegions = new_regions;
+    }
+
+    TyErrorId initialize(AnnotatorContext &ctx)
     {
         outInfo("initialize");
 
-        if (ctx.isParameterDefined("border"))
-            ctx.extractValue("border", border_);
-
-        std::vector<std::string*> temp;
-        if (ctx.isParameterDefined("defaultRegions"))
+        if(ctx.isParameterDefined("border"))
+        {
+            ctx.extractValue("border", border);
+        }
+        std::vector<std::string *> temp;
+        if(ctx.isParameterDefined("defaultRegions"))
         {
             ctx.extractValue("defaultRegions", temp);
-            for (auto s : temp)
+            for(auto s : temp)
             {
-                outDebug("Default region: " << *s);
-                default_regions_.push_back(*s);
+                outInfo(*s);
+                defaultRegions.push_back(*s);
             }
         }
-        if(ctx.isParameterDefined("enabled"))
-            ctx.extractValue("enabled", enabled);
-        if (ctx.isParameterDefined("enable_change_detection"))
-            ctx.extractValue("enable_change_detection", change_detection_);
-        if (ctx.isParameterDefined("enable_frustum_culling"))
-            ctx.extractValue("enable_frustum_culling", frustum_culling_);
-        if (ctx.isParameterDefined("pixel_threshold"))
-            ctx.extractValue("pixel_threshold", pixel_threshold_);
-        if (ctx.isParameterDefined("depth_threshold"))
-            ctx.extractValue("depth_threshold", depth_threshold_);
-        if (ctx.isParameterDefined("global_threshold"))
+
+        if(ctx.isParameterDefined("enable_change_detection"))
+        {
+            ctx.extractValue("enable_change_detection", changeDetection);
+        }
+        if(ctx.isParameterDefined("enable_frustum_culling"))
+        {
+            ctx.extractValue("enable_frustum_culling", frustumCulling_);
+        }
+        if(ctx.isParameterDefined("pixel_threshold"))
+        {
+            ctx.extractValue("pixel_threshold", pixelThreshold);
+        }
+        if(ctx.isParameterDefined("depth_threshold"))
+        {
+            ctx.extractValue("depth_threshold", depthThreshold);
+        }
+        if(ctx.isParameterDefined("global_threshold"))
+        {
             ctx.extractValue("global_threshold", threshold);
-        if (ctx.isParameterDefined("change_timeout"))
+        }
+        if(ctx.isParameterDefined("change_timeout"))
         {
             int tmp = 120;
             ctx.extractValue("change_timeout", tmp);
             timeout = tmp;
         }
-        if (ctx.isParameterDefined("semantic_map_definition"))
+        if(ctx.isParameterDefined("annotate"))
         {
-            std::string file;
-            ctx.extractValue("semantic_map_definition", file);
-
-            if(file.compare(lastFile) != 0)
-            {
-                readSemanticMap(file);
-            }
-
-            lastFile = file;
+            ctx.extractValue("annotate", annotate);
         }
-
+        if(ctx.isParameterDefined("frame"))
+        {
+            ctx.extractValue("frame", frame);
+        }
         return UIMA_ERR_NONE;
-    }
-
-    TyErrorId reconfigure() {
-        return initialize(getAnnotatorContext());
     }
 
     TyErrorId destroy()
@@ -187,114 +176,24 @@ public:
         return UIMA_ERR_NONE;
     }
 
-    bool readSemanticMap(const std::string& file)
-    {
-        std::vector<std::string> search_paths = rs::common::getRSSearchPaths("/config");
-        std::string path_to_sem_map;
-        for (auto p : search_paths)
-            if (boost::filesystem::is_regular_file(boost::filesystem::path(p + "/" + file)))
-                path_to_sem_map = p + "/" + file;
-
-        if (path_to_sem_map.empty())
-            throw rs::InitAEException(this->name, "Semantic map file not found: " + file);
-
-        outDebug("Path to semantic map file: " FG_BLUE << path_to_sem_map);
-
-        YAML::Node config = YAML::LoadFile(path_to_sem_map);
-
-        if (config["names"])
-        {
-            auto sem_map_entries = config["names"].as<std::vector<std::string>>();
-            semantic_map_items_.resize(sem_map_entries.size());
-            for (size_t i = 0; i < sem_map_entries.size(); ++i)
-            {
-                SemanticMapItem& item = semantic_map_items_[i];
-                if (!config[sem_map_entries[i]])
-                    throw rs::InitAEException(this->name, "Semantic map file is malformed. The region: " + sem_map_entries[i] +
-                                                          " has no transformation attached to it!!");
-                YAML::Node entry = config[sem_map_entries[i]];
-
-                item.name = sem_map_entries[i];
-                item.type = entry["type"].as<std::string>();
-                item.x_dimention = entry["depth"].as<double>();   // X-dim
-                item.y_dimention = entry["width"].as<double>();   // Y-dim
-                item.z_dimension = entry["height"].as<double>();  // Z-dim
-
-                if (entry["reference_frame"])
-                    item.reference_frame = entry["reference_frame"].as<std::string>();
-                else
-                    item.reference_frame = "map";
-
-                if (entry["plane_eq"])
-                {
-                    item.has_plane_equations = true;
-                    std::vector<float> plane_eq = entry["plane_eq"].as<std::vector<float>>();
-                    std::memcpy(&item.plane_eq.val, plane_eq.data(), plane_eq.size() * sizeof(float));
-                    outDebug("Found a pre-defined plane equation for " << item.name << " : " << item.plane_eq);
-                }
-
-                cv::Mat m;
-                YAML::Node transform = entry["transform"];
-                int rows = transform["rows"].as<int>();
-                int cols = transform["cols"].as<int>();
-                std::vector<double> trans_matrix = transform["data"].as<std::vector<double>>();
-                if (rows * cols != static_cast<int>(trans_matrix.size()))
-                    throw rs::InitAEException(this->name, "Semantic map file is malformed. The region: " + sem_map_entries[i] +
-                                                          " has a bad transformation!! cols*rows != data.size()");
-
-                tf::Matrix3x3 rot;
-                tf::Vector3 trans;
-                rot.setValue(trans_matrix.at(0), trans_matrix.at(1), trans_matrix.at(2), trans_matrix.at(4), trans_matrix.at(5),
-                             trans_matrix.at(6), trans_matrix.at(8), trans_matrix.at(9), trans_matrix.at(10));
-                trans.setValue(trans_matrix.at(3), trans_matrix.at(7), trans_matrix.at(11));
-                item.transform = tf::Transform(rot, trans);
-            }
-        }
-        else
-            throw rs::InitAEException(this->name, "Semantic map file is malformed. Semantic map file needs to have a \"name\""
-                                                  " tag containing a list of all semantic region names");
-    }
-
 private:
-    TyErrorId processWithLock(CAS& tcas, ResultSpecification const& res_spec)
+    TyErrorId processWithLock(CAS &tcas, ResultSpecification const &res_spec)
     {
-        if(!enabled){
-            outInfo("RegionFilter is disabled");
-
-            return UIMA_ERR_NONE;
-        }
-
         MEASURE_TIME;
         outInfo("process begins");
         rs::SceneCas cas(tcas);
         rs::Scene scene = cas.getScene();
 
-        std::vector<rs::SemanticMapObject> semantic_map;
-        semantic_map.reserve(semantic_map_items_.size());
-        for (size_t i = 0; i < semantic_map_items_.size(); ++i)
-        {
-            SemanticMapItem& item = semantic_map_items_[i];
-            rs::SemanticMapObject obj = rs::create<rs::SemanticMapObject>(tcas);
-            obj.name(item.name);
-            obj.typeName(item.type);
-            obj.width(static_cast<double>(item.y_dimention));
-            obj.height(static_cast<double>(item.z_dimension));
-            obj.depth(static_cast<double>(item.x_dimention));
-            obj.transform(rs::conversion::to(tcas, item.transform));
-            semantic_map.push_back(obj);
-        }
-        cas.set(VIEW_SEMANTIC_MAP, semantic_map);
+        cas.get(VIEW_CLOUD, *cloud);
+        cas.get(VIEW_COLOR_IMAGE, color);
+        cas.get(VIEW_DEPTH_IMAGE, depth);
+        cas.get(VIEW_CAMERA_INFO, cameraInfo);
 
-        cas.get(VIEW_CLOUD, *cloud_);
-        cas.get(VIEW_COLOR_IMAGE, color_);
-        cas.get(VIEW_DEPTH_IMAGE, depth_);
-        cas.get(VIEW_CAMERA_INFO, camera_info_);
-
-        indices_->clear();
-        indices_->reserve(cloud_->points.size());
+        indices->clear();
+        indices->reserve(cloud->points.size());
 
         camToWorld.setIdentity();
-        if (scene.viewPoint.has())
+        if(scene.viewPoint.has())
         {
             rs::conversion::from(scene.viewPoint.get(), camToWorld);
         }
@@ -303,144 +202,126 @@ private:
             outWarn("No camera to world transformation, no further processing!");
             throw rs::FrameFilterException();
         }
-        worldToCam =
-                tf::StampedTransform(camToWorld.inverse(), camToWorld.stamp_, camToWorld.child_frame_id_, camToWorld.frame_id_);
+        worldToCam = tf::StampedTransform(camToWorld.inverse(), camToWorld.stamp_, camToWorld.child_frame_id_, camToWorld.frame_id_);
         computeFrustum();
 
-        // default place to look for objects is counter tops except if we got queried for some different place
+        //default place to look for objects is counter tops except if we got queried for some different place
         rs::Query qs = rs::create<rs::Query>(tcas);
+        std::vector<std::string> regionsToLookAt;
+        regionsToLookAt.assign(defaultRegions.begin(), defaultRegions.end());
+        regions.clear();
 
-        regions_to_look_at_.assign(default_regions_.begin(), default_regions_.end());
-
-        if (cas.getFS("QUERY", qs) && qs.query() != "")
+        if(cas.getFS("QUERY", qs) && qs.query() != "")
         {
-            rapidjson::Document json_doc;
-            std::string json_string = qs.query();
-            json_doc.Parse(json_string.c_str());
-            outWarn("query in CAS : " << json_string);
+            rapidjson::Document jsonDoc;
+            std::string jsonString  = qs.query();
+            jsonDoc.Parse(jsonString.c_str());
+            outWarn("query in CAS : " << jsonString);
 
-            rapidjson::Pointer frame_pointer_in("/detect/location");
-            rapidjson::Value* frame_json = frame_pointer_in.Get(json_doc);
-            std::string new_location;
-            if (frame_json && frame_json->IsString())
-                new_location = frame_json->GetString();
+            //TODO first level of json is currently only detect, needs to be done differently when there are
+            //multiple modes (Maybe save query mode in FS?)
+            rapidjson::Pointer framePointerIn("/detect/location");
+            // rapidjson::Pointer framePointerOn("/detect/location/on");
 
-            outWarn("location set: " << new_location);
-            if (std::find(default_regions_.begin(), default_regions_.end(), new_location) == std::end(default_regions_) &&
-                new_location != "")
+            rapidjson::Value *frameJson = framePointerIn.Get(jsonDoc);
+//      rapidjson::Value *frameJsonOn = framePointerOn.Get(jsonDoc);
+            std::string newLocation;
+
+            if(frameJson && frameJson->IsString())
             {
-                outInfo("Location defined in query is not set in the default regions. Setting as active region to look at");
-                regions_to_look_at_.clear();
-                regions_to_look_at_.push_back(new_location);
-                if (json_string.find("scan"))
+                newLocation = frameJson->GetString();
+            }
+
+            //     if(frameJsonOn && frameJsonOn->IsString())
+            //     {
+            //       newLocation = frameJsonOn->GetString();
+            //     }
+
+            outWarn("location set: " << newLocation);
+            if(std::find(defaultRegions.begin(), defaultRegions.end(), newLocation) == std::end(defaultRegions) && newLocation != "")
+            {
+                outInfo("new location not in default Regions");
+                regionsToLookAt.clear();
+                regionsToLookAt.push_back(newLocation);
+                if(jsonString.find("scan"))
                 {
                     outInfo("Scanning action defined: filter location set permanently");
-                    default_regions_.clear();
-                    default_regions_.push_back(new_location);
+                    defaultRegions.clear();
+                    defaultRegions.push_back(newLocation);
                 }
             }
         }
 
-        for (auto region : regions_to_look_at_)
+        if(regions.empty())
         {
-            std::vector<SemanticMapItem>::iterator it =
-                    std::find_if(semantic_map_items_.begin(), semantic_map_items_.end(),
-                                 [region](SemanticMapItem r) { return region == r.name; });
-            if (it != semantic_map_items_.end())
+            std::vector<rs::SemanticMapObject> semanticRegions;
+            getSemanticMapEntries(cas, regionsToLookAt, semanticRegions);
+
+            regions.resize(semanticRegions.size());
+            for(size_t i = 0; i < semanticRegions.size(); ++i)
             {
-                outDebug("Found " << region);
-                outDebug(it->name << " is defined in " << it->reference_frame);
-                if (it->reference_frame != "map")
-                {
-                    outDebug("Looking up transfrom from: " << camera_info_.header.frame_id << " to " << it->reference_frame);
-                    listener_.listener->waitForTransform(camera_info_.header.frame_id, it->reference_frame, ros::Time(0),
-                                                         ros::Duration(2.0));
-                    listener_.listener->lookupTransform(camera_info_.header.frame_id, it->reference_frame, ros::Time(0),
-                                                        camToWorld);
-                    worldToCam = tf::StampedTransform(camToWorld.inverse(), camToWorld.stamp_, camToWorld.child_frame_id_,
-                                                      camToWorld.frame_id_);
-                    computeFrustum();
+
+                Region &region = regions[i];
+                region.width = semanticRegions[i].width();
+                region.depth = semanticRegions[i].depth();
+                region.height = semanticRegions[i].height();
+                region.name = semanticRegions[i].name();
+                region.type = semanticRegions[i].typeName();
+                rs::conversion::from(semanticRegions[i].transform(), region.transform);
+            }
+        }
+
+        for(size_t i = 0; i < regions.size(); ++i)
+        {
+            if(frustumCulling(regions[i]) || !frustumCulling_)
+            {
+                outInfo("region inside frustum: " << regions[i].name);
+                if(annotate) {
+                    annotateRegion(regions[i], tcas, scene);
                 }
-                if (frustumCulling(*it) || !frustum_culling_)
-                {
-                    outDebug("region inside frustum: " << it->name);
-                    filterRegion(*it);
-
-                    if (it->has_plane_equations)
-                    {
-                        Eigen::Matrix4d Trans;
-                        Trans.setIdentity();  // Set to Identity to make bottom row of Matrix 0,0,0,1
-                        Trans(0, 0) = worldToCam.getBasis()[0][0];
-                        Trans(0, 1) = worldToCam.getBasis()[0][1];
-                        Trans(0, 2) = worldToCam.getBasis()[0][2];
-
-                        Trans(1, 0) = worldToCam.getBasis()[1][0];
-                        Trans(1, 1) = worldToCam.getBasis()[1][1];
-                        Trans(1, 2) = worldToCam.getBasis()[1][2];
-
-                        Trans(2, 0) = worldToCam.getBasis()[2][0];
-                        Trans(2, 1) = worldToCam.getBasis()[2][1];
-                        Trans(2, 2) = worldToCam.getBasis()[2][2];
-
-                        Trans(0, 3) = worldToCam.getOrigin()[0];
-                        Trans(1, 3) = worldToCam.getOrigin()[1];
-                        Trans(2, 3) = worldToCam.getOrigin()[2];
-
-                        Eigen::Vector4d plane_eq(it->plane_eq[0], it->plane_eq[1], it->plane_eq[2], -it->plane_eq[3]);
-
-                        Eigen::Vector4d new_plane_eq = Trans.inverse().transpose() * plane_eq;
-
-                        rs::Plane supp_plane = rs::create<rs::Plane>(tcas);
-                        std::vector<float> plane_model_as_std_vect(4);
-                        plane_model_as_std_vect[0] = new_plane_eq[0];
-                        plane_model_as_std_vect[1] = new_plane_eq[1];
-                        plane_model_as_std_vect[2] = new_plane_eq[2];
-                        plane_model_as_std_vect[3] = new_plane_eq[3];
-                        supp_plane.model.set(plane_model_as_std_vect);
-                        supp_plane.source("RegionFilter");
-                        outDebug("Setting plane eq to CAS: "<<new_plane_eq);
-                        scene.annotations.append(supp_plane);
-                    }
-                }
+                filterRegion(regions[i]);
             }
             else
-                outWarn("Region: " << region << " is not deined in the semantic map that was loaded.");
+            {
+                outInfo("region outside frustum: " << regions[i].name);
+            }
         }
 
         pcl::ExtractIndices<PointT> ei;
         ei.setKeepOrganized(true);
-        ei.setIndices(indices_);
-        ei.filterDirectly(cloud_);
+        ei.setIndices(indices);
+        ei.filterDirectly(cloud);
 
-        cas.set(VIEW_CLOUD, *cloud_);
+        cas.set(VIEW_CLOUD, *cloud);
 
-        if (change_detection_ && !indices_->empty())
+        if(changeDetection && !indices->empty())
         {
             ++frames;
-            if (last_img_.empty())
+            if(lastImg.empty())
             {
-                last_mask_ = cv::Mat::ones(color_.rows, color_.cols, CV_8U);
-                last_img_ = cv::Mat::zeros(color_.rows, color_.cols, CV_32FC4);
+                lastMask = cv::Mat::ones(color.rows, color.cols, CV_8U);
+                lastImg = cv::Mat::zeros(color.rows, color.cols, CV_32FC4);
             }
 
-            uint32_t seconds_passed = camToWorld.stamp_.sec - last_time_.sec;
-            bool change = checkChange() || cas.has("QUERY") || seconds_passed > timeout;
+            uint32_t secondsPassed = camToWorld.stamp_.sec - lastTime.sec;
+            bool change = checkChange() || cas.has("QUERY") || secondsPassed > timeout;
 
-            if (!change)
-                ++filtered;
-            else
-                last_time_ = camToWorld.stamp_;
-
-            outDebug("filtered frames: " << filtered << " / " << frames << "(" << (filtered / (float)frames) * 100 << "%)");
-
-            if (!change)
+            if(!change)
             {
-                outInfo("No changes in frame detected, no further processing!");
+                ++filtered;
+            }
+            else
+            {
+                lastTime = camToWorld.stamp_;
+            }
+            outInfo("filtered frames: " << filtered << " / " << frames << "(" << (filtered / (float)frames) * 100 << "%)");
+
+            if(!change)
+            {
+                outWarn("no changes in frame detected, no further processing!");
                 throw rs::FrameFilterException();
             }
         }
-        else
-            indices_->swap(last_indices_);
 
         return UIMA_ERR_NONE;
     }
@@ -448,8 +329,8 @@ private:
     void computeFrustum()
     {
         // compute frustum based on camera info and tf
-        const double alphaY = camera_info_.K[4];
-        const double fovY = 2 * atan(camera_info_.height / (2 * alphaY));
+        const double alphaY = cameraInfo.K[4];
+        const double fovY = 2 * atan(cameraInfo.height / (2 * alphaY));
         tf::Vector3 up(0, 1, 0), focal(1, 0, 0);
         up = camToWorld * up;
         focal = camToWorld * focal;
@@ -457,8 +338,8 @@ private:
         camera.fovy = fovY;
         camera.clip[0] = 0.001;
         camera.clip[1] = 12.0;
-        camera.window_size[0] = camera_info_.width;
-        camera.window_size[1] = camera_info_.height;
+        camera.window_size[0] = cameraInfo.width;
+        camera.window_size[1] = cameraInfo.height;
         camera.window_pos[0] = 0;
         camera.window_pos[1] = 0;
         camera.pos[0] = worldToCam.getOrigin().x();
@@ -471,21 +352,21 @@ private:
         camera.focal[1] = focal.y();
         camera.focal[2] = focal.z();
 
-        Eigen::Matrix4d view_matrix;
-        Eigen::Matrix4d projection_matrix;
-        Eigen::Matrix4d view_projection_matrix;
-        camera.computeViewMatrix(view_matrix);
-        camera.computeProjectionMatrix(projection_matrix);
-        view_projection_matrix = projection_matrix * view_matrix;
-        pcl::visualization::getViewFrustum(view_projection_matrix, frustum);
+        Eigen::Matrix4d viewMatrix;
+        Eigen::Matrix4d projectionMatrix;
+        Eigen::Matrix4d viewProjectionMatrix;
+        camera.computeViewMatrix(viewMatrix);
+        camera.computeProjectionMatrix(projectionMatrix);
+        viewProjectionMatrix = projectionMatrix * viewMatrix;
+        pcl::visualization::getViewFrustum(viewProjectionMatrix, frustum);
     }
 
-    bool frustumCulling(const SemanticMapItem& region)
+    bool frustumCulling(const Region &region)
     {
         double tFrustum[24];
 
         // transform frustum planes to region
-        for (size_t i = 0; i < 6; ++i)
+        for(size_t i = 0; i < 6; ++i)
         {
             tf::Vector3 normal(frustum[i * 4 + 0], frustum[i * 4 + 1], frustum[i * 4 + 2]);
             double d = frustum[i * 4 + 3];
@@ -502,14 +383,13 @@ private:
         }
 
         // check region bounding box
-        Eigen::Vector3d bbMin(-(region.y_dimention / 2), -(region.z_dimension / 2), -(region.x_dimention / 2));
-        Eigen::Vector3d bbMax((region.y_dimention / 2), (region.z_dimension / 2), 0.5);
-        pcl::visualization::FrustumCull res =
-                (pcl::visualization::FrustumCull)pcl::visualization::cullFrustum(tFrustum, bbMin, bbMax);
+        Eigen::Vector3d bbMin(-(region.width / 2), -(region.height / 2), -(region.depth / 2));
+        Eigen::Vector3d bbMax((region.width / 2), (region.height / 2), 0.5);
+        pcl::visualization::FrustumCull res = (pcl::visualization::FrustumCull)pcl::visualization::cullFrustum(tFrustum, bbMin, bbMax);
         return res != pcl::visualization::PCL_OUTSIDE_FRUSTUM;
     }
 
-    cv::Vec4f invariantColor(const cv::Vec3b& color, const uint16_t depth) const
+    cv::Vec4f invariantColor(const cv::Vec3b &color, const uint16_t depth) const
     {
         cv::Vec4f out;
         const float sum = color.val[0] + color.val[1] + color.val[2];
@@ -520,93 +400,106 @@ private:
         return out;
     }
 
-    bool checkChange(const cv::Vec4f& v1, const int index) const
+    bool checkChange(const cv::Vec4f &v1, const int index) const
     {
-        if (last_mask_.at<uint8_t>(index))
+        if(lastMask.at<uint8_t>(index))
         {
-            const cv::Vec4f& v2 = last_img_.at<cv::Vec4f>(index);
-            return std::abs(v1.val[3] - v2.val[3]) > depth_threshold_ ||
-                   (std::abs(v1.val[0] - v2.val[0]) + std::abs(v1.val[1] - v2.val[1]) + std::abs(v1.val[2] - v2.val[2])) >
-                   pixel_threshold_;
+            const cv::Vec4f &v2 = lastImg.at<cv::Vec4f>(index);
+            return std::abs(v1.val[3] - v2.val[3]) > depthThreshold || (std::abs(v1.val[0] - v2.val[0]) + std::abs(v1.val[1] - v2.val[1]) + std::abs(v1.val[2] - v2.val[2])) > pixelThreshold;
         }
         return true;
     }
 
     bool checkChange()
     {
-        cv::Mat mask = cv::Mat::zeros(color_.rows, color_.cols, CV_8U);
-        cv::Mat img = cv::Mat::zeros(color_.rows, color_.cols, CV_32FC4);
-        size_t changed_pixels = 0;
-        size_t size = indices_->size();
-        changes_.clear();
+        cv::Mat mask = cv::Mat::zeros(color.rows, color.cols, CV_8U);
+        cv::Mat img = cv::Mat::zeros(color.rows, color.cols, CV_32FC4);
+        size_t changedPixels = 0;
+        size_t size = indices->size();
+        changes.clear();
 
         // Check pixel changes
-        for (size_t i = 0; i < indices_->size(); ++i)
+        for(size_t i = 0; i < indices->size(); ++i)
         {
-            const int idx = indices_->at(i);
+            const int idx = indices->at(i);
 
-            cv::Vec4f v = invariantColor(color_.at<cv::Vec3b>(idx), depth_.at<uint16_t>(idx));
+            cv::Vec4f v = invariantColor(color.at<cv::Vec3b>(idx), depth.at<uint16_t>(idx));
             img.at<cv::Vec4f>(idx) = v;
             mask.at<uint8_t>(idx) = 1;
 
-            if (checkChange(v, idx))
+            if(checkChange(v, idx))
             {
-                changes_.push_back(idx);
-                ++changed_pixels;
+                changes.push_back(idx);
+                ++changedPixels;
             }
         }
         // Check pixels that are masked out in current but not in last frame
-        for (size_t i = 0; i < last_indices_.size(); ++i)
+        for(size_t i = 0; i < lastIndices.size(); ++i)
         {
-            const int idx = last_indices_.at(i);
-            if (!mask.at<uint8_t>(idx))
+            const int idx = lastIndices.at(i);
+            if(!mask.at<uint8_t>(idx))
             {
-                changes_.push_back(idx);
-                ++changed_pixels;
+                changes.push_back(idx);
+                ++changedPixels;
                 ++size;
             }
         }
 
-        last_img_ = img;
-        last_mask_ = mask;
-        indices_->swap(last_indices_);
+        lastImg = img;
+        lastMask = mask;
+        indices->swap(lastIndices);
 
-        const float diff = changed_pixels / (float)size;
-        outDebug(changed_pixels << " from " << size << " pixels changed (" << diff * 100 << "%)");
+        const float diff = changedPixels / (float)size;
+        outInfo(changedPixels << " from " << size << " pixels changed (" << diff * 100 << "%)");
 
         return diff > threshold;
     }
 
-    void filterRegion(const SemanticMapItem& region)
+    void getSemanticMapEntries(rs::SceneCas &cas, const std::vector<std::string> &name, std::vector<rs::SemanticMapObject> &mapObjects)
     {
-        const float minX = -(region.x_dimention / 2) + border_;
-        const float maxX = (region.x_dimention / 2) - border_;
-        float minY = -(region.y_dimention / 2) + border_;
-        const float maxY = (region.y_dimention / 2) - border_;
-        const float minZ = -(region.z_dimension / 2);
-        float maxZ = +(region.z_dimension / 2);
+        std::vector<rs::SemanticMapObject> objects;
+        cas.get(VIEW_SEMANTIC_MAP, objects);
+        for(auto n : name)
+        {
+            for(size_t i = 0; i < objects.size(); ++i)
+            {
+                if(objects[i].name() == n)
+                {
+                    mapObjects.push_back(objects[i]);
+                }
+            }
+        }
+    }
 
-        if (region.name == "drawer_sinkblock_upper_open")
+    void filterRegion(const Region &region)
+    {
+        const float minX = -(region.width / 2) + border;
+        const float maxX = (region.width / 2) - border;
+        float minY = -(region.height / 2) + border;
+        const float maxY = (region.height / 2) - border;
+        const float minZ = -(region.depth / 2);
+        float maxZ = +(region.depth / 2);
+
+        if(region.name == "drawer_sinkblock_upper_open")
         {
             maxZ = 0.08;
         }
-        // needed because of crappy sem map
+        //needed because of crappy sem map
 
-        if (region.type == "CounterTop")
+        if(region.type == "CounterTop")
         {
             maxZ = 0.4;
         }
-        if (region.name == "kitchen_sink_block_counter_top")
+        if(region.name == "kitchen_sink_block_counter_top")
         {
-            minY += 1;  // don't get points for the sink
+            minY += 1;//don't get points for the sink
         }
-        else if (region.name == "kitchen_island_counter_top")
+        else if(region.name == "kitchen_island_counter_top")
         {
-            minY += 0.6;  // same for the hot plate
+            minY += 0.6; //same for the hot plate
         }
 
         tf::Transform transform;
-
         transform = region.transform.inverse() * camToWorld;
 
         Eigen::Affine3d eigenTransform;
@@ -614,53 +507,79 @@ private:
 
         pcl::PointCloud<PointT>::Ptr transformed(new pcl::PointCloud<PointT>());
 
-        pcl::transformPointCloud<PointT>(*cloud_, *transformed, eigenTransform);
+        pcl::transformPointCloud<PointT>(*cloud, *transformed, eigenTransform);
 
-        for (size_t i = 0; i < transformed->points.size(); ++i)
+        for(size_t i = 0; i < transformed->points.size(); ++i)
         {
-            const PointT& p = transformed->points[i];
-            if (p.x > minX && p.x < maxX && p.y > minY && p.y < maxY && p.z > minZ && p.z < maxZ)
+            const PointT &p = transformed->points[i];
+            if(p.x > minX && p.x < maxX && p.y > minY && p.y < maxY && p.z > minZ && p.z < maxZ)
             {
-                indices_->push_back(i);
+                indices->push_back(i);
             }
         }
     }
 
-    void drawImageWithLock(cv::Mat& disp)
+    void annotateRegion(const Region &region, CAS &tcas, rs::Scene &scene) {
+        rs_hsrb_perception::Region regionAnn = rs::create<rs_hsrb_perception::Region>(tcas);
+        regionAnn.name.set(region.name);
+        regionAnn.type.set(region.type);
+        regionAnn.width.set(region.width);
+        regionAnn.height.set(region.height);
+        regionAnn.depth.set(region.depth);
+
+        rs::StampedTransform stampedTransform = rs::create<rs::StampedTransform>(tcas);
+        stampedTransform.frame.set(frame);
+
+        std::vector<double> translation = std::vector<double>();
+        translation.push_back(region.transform.getOrigin().x());
+        translation.push_back(region.transform.getOrigin().y());
+        translation.push_back(region.transform.getOrigin().z());
+        stampedTransform.translation.set(translation);
+
+        std::vector<double> rotation = std::vector<double>();
+        rotation.push_back(region.transform.getRotation().x());
+        rotation.push_back(region.transform.getRotation().y());
+        rotation.push_back(region.transform.getRotation().z());
+        rotation.push_back(region.transform.getRotation().w());
+        stampedTransform.rotation.set(rotation);
+
+        regionAnn.transform.set(stampedTransform);
+        scene.annotations.append(regionAnn);
+    }
+
+    void drawImageWithLock(cv::Mat &disp)
     {
-        disp = cv::Mat::zeros(cloud_->height, cloud_->width, CV_8UC3);
+        disp = cv::Mat::zeros(cloud->height, cloud->width, CV_8UC3);
         const cv::Vec3b white(255, 255, 255);
         const cv::Vec3b red(0, 0, 255);
 
 #pragma omp parallel for
-        for (size_t i = 0; i < last_indices_.size(); ++i)
+        for(size_t i = 0; i < lastIndices.size(); ++i)
         {
-            const int& index = last_indices_.at(i);
+            const int &index = lastIndices.at(i);
             disp.at<cv::Vec3b>(index) = white;
         }
 #pragma omp parallel for
-        for (size_t i = 0; i < changes_.size(); ++i)
+        for(size_t i = 0; i < changes.size(); ++i)
         {
-            const int& index = changes_.at(i);
+            const int &index = changes.at(i);
             disp.at<cv::Vec3b>(index) = red;
         }
     }
 
-    void fillVisualizerWithLock(pcl::visualization::PCLVisualizer& visualizer, const bool first_run)
+    void fillVisualizerWithLock(pcl::visualization::PCLVisualizer &visualizer, const bool firstRun)
     {
-        const std::string& cloud_name = this->name;
+        const std::string &cloudname = this->name;
 
-        if (first_run)
+        if(firstRun)
         {
-            visualizer.addPointCloud(cloud_, cloud_name);
-            visualizer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size_,
-                                                        cloud_name);
+            visualizer.addPointCloud(cloud, cloudname);
+            visualizer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, pointSize, cloudname);
         }
         else
         {
-            visualizer.updatePointCloud(cloud_, cloud_name);
-            visualizer.getPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size_,
-                                                        cloud_name);
+            visualizer.updatePointCloud(cloud, cloudname);
+            visualizer.getPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, pointSize, cloudname);
             visualizer.removeAllShapes();
         }
 
@@ -683,11 +602,9 @@ private:
         visualizer.addLine(pclOrigin, pclLineY, 0, 1, 0, "lineY");
         visualizer.addLine(pclOrigin, pclLineZ, 0, 0, 1, "lineZ");
 
-        for (int i = 0; i < semantic_map_items_.size(); ++i)
+        for(int i = 0; i < regions.size(); ++i)
         {
-            const SemanticMapItem& region = semantic_map_items_[i];
-            if (std::find(regions_to_look_at_.begin(), regions_to_look_at_.end(), region.name) == regions_to_look_at_.end())
-                continue;
+            const Region &region = regions[i];
             tf::Transform transform = worldToCam * region.transform;
 
             std::ostringstream oss;
@@ -714,8 +631,8 @@ private:
             tf::vectorTFToEigen(transform.getOrigin(), translation);
             tf::quaternionTFToEigen(transform.getRotation(), rotation);
 
-            visualizer.addCube(translation.cast<float>(), rotation.cast<float>(), region.x_dimention, region.y_dimention,
-                               region.z_dimension, oss.str());
+            visualizer.addCube(translation.cast<float>(), rotation.cast<float>(),
+                               region.width, region.height, region.depth, oss.str());
             visualizer.setRepresentationToWireframeForAllActors();
         }
     }
