@@ -54,7 +54,7 @@
   <exec_depend>robosherlock</exec_depend>
   <depend>suturo_perception_msgs</depend>
   <depend>geometry_msgs</depend>
-
+  <depend>rapidjson_ros</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

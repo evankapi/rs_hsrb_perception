@@ -18,7 +18,7 @@ SuturoProcessManager::SuturoProcessManager(ros::NodeHandle n, const std::string 
     vis_service = nh.advertiseService("vis_command", &SuturoProcessManager::visControlCallback, this);
     image_pub = image_transport.advertise("result_image", 1, true);
 
-    visualize = false;
+    visualize = true;
 }
 
 SuturoProcessManager::SuturoProcessManager(ros::NodeHandle n, std::string &name) :
@@ -29,7 +29,7 @@ SuturoProcessManager::SuturoProcessManager(ros::NodeHandle n, std::string &name)
 {
     setup();
 
-    visualize = false;
+    visualize = name.compare("hsrb_1ms") == 0;
 }
 
 void SuturoProcessManager::setup() {
@@ -103,33 +103,19 @@ void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vect
         cluster.annotations.filter(region);
 
         if(region.empty()) {
-            outInfo("No regions annotated.");
+            getClusterFeatures(cluster, detectionData);
         }
         else {
             outInfo("Cluster region: " << region[0].name());
+
+            if(!filter_regions || std::find(regions.begin(), regions.end(), region[0].name()) != regions.end()) {
+                getClusterFeatures(cluster, detectionData);
+            }
+            else {
+                outInfo("Object was ignored because it seems to be placed on the wrong surface");
+            }
         }
-
-        if(!filter_regions || region.size() == 0 || std::find(regions.begin(), regions.end(), region[0].name()) != regions.end()) {
-            getClusterFeatures(cluster, detectionData);
-        } else {
-            outInfo("Object was ignored because it seems to be placed on the wrong surface");
-        }
     }
-}
-
-void SuturoProcessManager::setVisualize(bool visualize) {
-    if(this->visualize == visualize) {
-        return;
-    }
-
-    if(visualize) {
-        visualizer.start();
-    }
-    else {
-        visualizer.stop();
-    }
-
-    this->visualize = visualize;
 }
 
 bool SuturoProcessManager::has_vertical_plane() {
@@ -145,7 +131,6 @@ bool SuturoProcessManager::has_vertical_plane() {
     std::vector<rs::Plane> planes;
     scene.annotations.filter(planes);
     return !planes.empty();
-
 }
 
 

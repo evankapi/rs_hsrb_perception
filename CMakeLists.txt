@@ -22,7 +22,7 @@ catkin_package(
    INCLUDE_DIRS include ${RS_INCLUDE_DIRS_LIST} ${catkin_INCLUDE_DIRS}
    LIBRARIES ${PROJECT_NAME}
    CFG_EXTRAS ${PROJECT_NAME}_config.cmake
-   CATKIN_DEPENDS suturo_perception_msgs geometry_msgs
+   CATKIN_DEPENDS suturo_perception_msgs geometry_msgs rapidjson_ros
    )
 ################################################################################
 ## Package dependencies                                                       ##

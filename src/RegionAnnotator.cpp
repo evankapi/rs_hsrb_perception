@@ -28,20 +28,30 @@ public:
 
   TyErrorId process(CAS &tcas, ResultSpecification const &res_spec)
   {
-    outInfo("process start");
+    outInfo("process started");
     rs::SceneCas cas(tcas);
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+    outInfo("Looking for clusters");
+
     rs::Scene scene = cas.getScene();
     std::vector<rs::ObjectHypothesis> clusters;
     scene.identifiables.filter(clusters);
+
+    outInfo("Processing " << clusters.size() << " clusters");
+
     for (auto &cluster : clusters) {
       std::vector<rs::PoseAnnotation> poses;
       cluster.annotations.filter(poses);
+
       if(!poses.empty()) {
         rs::StampedPose pose = poses[0].world();
-        std::vector<rs_hsrb_perception::Region> regions;
-        scene.annotations.filter(regions);
-        for(rs_hsrb_perception::Region region : regions) {
+        std::vector<rs::SemanticMapObject> regions;
+        cas.get(VIEW_SEMANTIC_MAP, regions);
+
+	outInfo("Found " << regions.size() << " regions");
+
+        for(rs::SemanticMapObject region : regions) {
           auto regionPos = region.transform().translation();
           auto clusterPos = pose.translation();
           double x = std::abs(regionPos[0] - clusterPos[0]);
@@ -55,10 +65,15 @@ public:
 
           if(x < region.height()/2 && y < region.width()/2 && z < region.depth()/2) {
               rs_hsrb_perception::Region r = rs::create<rs_hsrb_perception::Region>(tcas);
-              r.name().assign(region.name());
+              r.name.set(region.name());
               cluster.annotations.append(r);
+
+              outInfo("Added region annotation!");
           }
         }
+      }
+      else {
+          outInfo("No pose annotated!");
       }
     }
     return UIMA_ERR_NONE;

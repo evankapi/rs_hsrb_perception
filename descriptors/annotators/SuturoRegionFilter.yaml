@@ -12,11 +12,11 @@ parameters:
   border: 0.02
   change_timeout: 120
   defaultRegions:
-    - kitchen_sink_block_counter_top
-    - kitchen_island_counter_top
+  - kitchen_sink_block_counter_top
+  - kitchen_island_counter_top
   depth_threshold: 0.01
   enable_change_detection: true
-  enable_frustum_culling: false
+  enable_frustum_culling: false 
   global_threshold: 0.12
   pixel_threshold: 0.15
   semantic_map_definition: "suturo_semantic_map.yaml"
