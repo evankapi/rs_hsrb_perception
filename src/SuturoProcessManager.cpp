@@ -116,6 +116,8 @@ void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vect
             }
         }
     }
+
+    tcas->reset();
 }
 
 bool SuturoProcessManager::has_vertical_plane() {
