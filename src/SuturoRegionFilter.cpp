@@ -104,8 +104,7 @@ class SuturoRegionFilter : public DrawingAnnotator
       rs::TFListenerProxy listener_;
       double frustum[24];
 
-      bool annotate;
-      std::string frame;
+      bool enabled = true;
 
     public:
       SuturoRegionFilter()
@@ -124,6 +123,18 @@ class SuturoRegionFilter : public DrawingAnnotator
         , last_time_(ros::Time::now())
         , timeout(120)
       {
+      }
+
+      TyErrorId reconfigure() {
+	outInfo("Reconfigure..");
+	AnnotatorContext &ctx = getAnnotatorContext();
+
+	if(ctx.isParameterDefined("enabled"))
+        {
+          ctx.extractValue("enabled", enabled);
+        }
+
+        return UIMA_ERR_NONE;
       }
 
       TyErrorId initialize(AnnotatorContext& ctx)
@@ -166,13 +177,9 @@ class SuturoRegionFilter : public DrawingAnnotator
           ctx.extractValue("semantic_map_definition", file);
           readSemanticMap(file);
         }
-        if(ctx.isParameterDefined("annotate"))
+        if(ctx.isParameterDefined("enabled"))
         {
-          ctx.extractValue("annotate", annotate);
-        }
-        if(ctx.isParameterDefined("frame"))
-        {
-          ctx.extractValue("frame", frame);
+          ctx.extractValue("enabled", enabled);
         }
 
         return UIMA_ERR_NONE;
@@ -255,6 +262,11 @@ class SuturoRegionFilter : public DrawingAnnotator
     private:
       TyErrorId processWithLock(CAS& tcas, ResultSpecification const& res_spec)
       {
+	if(!enabled) {
+		outInfo("process aborted -> Filter is disabled");
+		return UIMA_ERR_NONE;
+	}
+
         MEASURE_TIME;
         outInfo("process begins");
         rs::SceneCas cas(tcas);
@@ -355,11 +367,6 @@ class SuturoRegionFilter : public DrawingAnnotator
             if (frustumCulling(*it) || !frustum_culling_)
             {
               outDebug("region inside frustum: " << it->name);
-              if(annotate) {
-                  outInfo("Starting region annotation:");
-                  annotateRegion(*it, tcas, scene);
-                  outInfo("End region annotation \n=============================\n\n\n");
-              }
               filterRegion(*it);
 
               if (it->has_plane_equations)
@@ -620,34 +627,6 @@ class SuturoRegionFilter : public DrawingAnnotator
             indices_->push_back(i);
           }
         }
-      }
-
-      void annotateRegion(const SemanticMapItem &region, CAS &tcas, rs::Scene &scene) {
-          rs_hsrb_perception::Region regionAnn = rs::create<rs_hsrb_perception::Region>(tcas);
-          regionAnn.name.set(region.name);
-          regionAnn.type.set(region.type);
-          regionAnn.width.set(region.x_dimention);
-          regionAnn.height.set(region.y_dimention);
-          regionAnn.depth.set(region.z_dimension);
-
-          rs::StampedTransform stampedTransform = rs::create<rs::StampedTransform>(tcas);
-          stampedTransform.frame.set(frame);
-
-          std::vector<double> translation = std::vector<double>();
-          translation.push_back(region.transform.getOrigin().x());
-          translation.push_back(region.transform.getOrigin().y());
-          translation.push_back(region.transform.getOrigin().z());
-          stampedTransform.translation.set(translation);
-
-          std::vector<double> rotation = std::vector<double>();
-          rotation.push_back(region.transform.getRotation().x());
-          rotation.push_back(region.transform.getRotation().y());
-          rotation.push_back(region.transform.getRotation().z());
-          rotation.push_back(region.transform.getRotation().w());
-          stampedTransform.rotation.set(rotation);
-
-          regionAnn.transform.set(stampedTransform);
-          scene.annotations.append(regionAnn);
       }
 
       void drawImageWithLock(cv::Mat& disp)

@@ -79,13 +79,13 @@ void SuturoProcessManager::run(std::map<std::string, boost::any> args, std::vect
         }
     }
     else {
-	    outInfo("Custom regions are disabled");
+	outInfo("Custom regions are disabled");
         regions = std::vector<std::string>();
         filter_regions = false;
     }
 
-    //engine->overwriteParam("SuturoRegionFilter", "enabled", filter_regions);
-    //engine->iv_annotatorMgr.iv_vecEntries[engine->getIndexOfAnnotator("SuturoRegionFilter")].iv_pEngine->reconfigure();
+    engine->overwriteParam("SuturoRegionFilter", "enabled", filter_regions);
+    engine->iv_annotatorMgr.iv_vecEntries[engine->getIndexOfAnnotator("SuturoRegionFilter")].iv_pEngine->reconfigure();
 
     outInfo("Analysis engine starts processing");
     engine->processOnce();
