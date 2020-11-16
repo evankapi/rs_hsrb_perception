@@ -5,8 +5,8 @@
  */
 // ROS
 #include <rs_hsrb_perception/suturo_conversion.h>
-#include "../../../../../../../opt/ros/kinetic/include/std_msgs/ColorRGBA.h"
-#include "../../../../../../../opt/ros/kinetic/include/geometry_msgs/PoseStamped.h"
+#include <std_msgs/ColorRGBA.h>
+#include <geometry_msgs/PoseStamped.h>
 
 namespace rs_hsrb_perception {
     namespace conversion {

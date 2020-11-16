@@ -4,7 +4,7 @@
  * @author Fenja Kollasch & Vanessa Hassouna
  */
 #include <rs_hsrb_perception/SuturoProcessManager.h>
-#include "../../../../../../../opt/ros/kinetic/include/std_msgs/ColorRGBA.h"
+#include <std_msgs/ColorRGBA.h>
 
 SuturoProcessManager::SuturoProcessManager(ros::NodeHandle n, const std::string savePath, std::string &name) :
     savePath(savePath),
