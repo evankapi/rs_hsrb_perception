@@ -24,6 +24,7 @@ catkin_package(
    CFG_EXTRAS ${PROJECT_NAME}_config.cmake
    CATKIN_DEPENDS suturo_perception_msgs geometry_msgs rapidjson_ros
    )
+find_package(OpenCV REQUIRED)
 ################################################################################
 ## Package dependencies                                                       ##
 ################################################################################
@@ -40,6 +41,7 @@ include_directories(
         include
         ${RS_INCLUDE_DIRS_LIST}
         ${catkin_INCLUDE_DIRS}
+	${OpenCV_INCLUDE_DIRS}
         )
 ################################################################################
 ## Update analysis engines, typesystem and include all relevant files         ##
@@ -55,7 +57,7 @@ target_link_libraries(${PROJECT_NAME} ${CATKIN_LIBRARIES})
 
 # Annotators / Fixed Flow Types
 rs_add_library(rs_SuturoClassifier src/SuturoClassifier.cpp)
-target_link_libraries(rs_SuturoClassifier ${PROJECT_NAME})
+target_link_libraries(rs_SuturoClassifier ${PROJECT_NAME} ${OpenCV_LIBS})
 
 rs_add_library(rs_SaveClusterCloudsAndImages src/SaveClusterCloudsAndImages.cpp)
 target_link_libraries(rs_SaveClusterCloudsAndImages ${catkin_LIBRARIES})
